@@ -1,0 +1,226 @@
+
+---
+title: "Fitbit Data Analysis"
+author: "Rahmanudeen"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About company
+Bellabeat, a high-tech manufacturer of health-focused products for women. Bellabeat is a successful small company, but they have the potential to become a larger player in the global smart device market. Urška Sršen, cofounder and Chief Creative Officer of Bellabeat, believes that analyzing smart device fitness data could help unlock new growth opportunities for the company
+
+## Questions for the analysis
+* What are some trends in smart device usage?
+* How could these trends apply to Bellabeat customers?
+* How could these trends help influence Bellabeat marketing strategy
+
+## Business task
+Identify potential opportunities for growth and recommendations for the Bellabeat marketing strategy improvement based on trends in smart device usage.
+
+## 📦 Installing and Loading Packages
+
+```{r packages}
+# Run these once in your R console (not every time you knit)
+# install.packages("tidyverse")
+# install.packages("ggplot2")
+# install.packages("lubridate")
+# install.packages("tidyr")
+# install.packages("dplyr")
+
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+## 📥 Importing the Data
+
+```{r import}
+activity <- read.csv("/Users/rahu/RStudio/dailyActivity_merged.csv")
+calories <- read.csv("/Users/rahu/RStudio/hourlyCalories_merged.csv")
+intensities <- read.csv("/Users/rahu/RStudio/hourlyIntensities_merged.csv")
+sleep <- read.csv("/Users/rahu/RStudio/sleepDay_merged.csv")
+weight <- read.csv("/Users/rahu/RStudio/weightLogInfo_merged.csv")
+```
+
+## 🧹 Data Cleaning and Date Formatting
+
+```{r cleaning}
+# Intensities
+intensities$ActivityHour <- as.POSIXct(intensities$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+intensities$time <- format(intensities$ActivityHour, format = "%H:%M:%S")
+intensities$date <- format(intensities$ActivityHour, format = "%m/%d/%y")
+
+# Calories
+calories$ActivityHour <- as.POSIXct(calories$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+calories$time <- format(calories$ActivityHour, format = "%H:%M:%S")
+calories$date <- format(calories$ActivityHour, format = "%m/%d/%y")
+
+# Activity
+activity$ActivityDate <- as.POSIXct(activity$ActivityDate, format="%m/%d/%Y", tz=Sys.timezone())
+activity$date <- format(activity$ActivityDate, format = "%m/%d/%y")
+
+# Sleep
+sleep$SleepDay <- as.POSIXct(sleep$SleepDay, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+sleep$date <- format(sleep$SleepDay, format = "%m/%d/%y")
+```
+
+## 🔍 Exploring the Data
+
+### Unique Users per Dataset
+
+```{r unique-users}
+n_distinct(activity$Id)
+n_distinct(calories$Id)
+n_distinct(intensities$Id)
+n_distinct(sleep$Id)
+n_distinct(weight$Id)
+```
+
+### Summary: Activity
+
+```{r activity-summary}
+activity %>%
+  select(TotalSteps, TotalDistance, SedentaryMinutes, Calories) %>%
+  summary()
+```
+
+### Summary: Active Minutes
+
+```{r active-minutes}
+activity %>%
+  select(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes) %>%
+  summary()
+```
+
+### Summary: Calories
+
+```{r calories-summary}
+calories %>%
+  select(Calories) %>%
+  summary()
+```
+
+### Summary: Sleep
+
+```{r sleep-summary}
+sleep %>%
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed) %>%
+  summary()
+```
+
+### Summary: Weight
+
+```{r weight-summary}
+weight %>%
+  select(WeightKg, BMI) %>%
+  summary()
+```
+
+## 🔗 Merging Sleep and Activity Data
+
+```{r merge}
+merged_data <- merge(sleep, activity, by = c("Id", "date"))
+head(merged_data)
+```
+
+## 📊 Visualizations
+
+### Total Steps vs. Calories
+
+```{r steps-vs-calories}
+ggplot(data = activity, aes(x = TotalSteps, y = Calories)) +
+  geom_point() + geom_smooth() +
+  labs(title = "Total Steps vs. Calories")
+```
+
+I see positive correlation here between Total Steps and Calories, which is obvious - the more active we are, the more calories we burn.
+
+
+### Minutes Asleep vs. Time in Bed
+
+```{r sleep-efficiency}
+ggplot(data = sleep, aes(x = TotalMinutesAsleep, y = TotalTimeInBed)) +
+  geom_point() +
+  labs(title = "Total Minutes Asleep vs. Total Time in Bed")
+```
+
+The relationship between Total Minutes Asleep and Total Time in Bed looks linear. So if the Bellabeat users want to improve their sleep, we should consider using notification to go to sleep.
+
+Let's look at intensities data over time (hourly).
+
+
+### Average Intensity by Time of Day
+
+```{r avg-intensity-time}
+int_new <- intensities %>%
+  group_by(time) %>%
+  drop_na() %>%
+  summarise(mean_total_int = mean(TotalIntensity))
+
+ggplot(data = int_new, aes(x = time, y = mean_total_int)) +
+  geom_col(fill = "darkblue") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Average Total Intensity vs. Time", x = "Time", y = "Mean Total Intensity")
+```
+
+After visualizing Total Intensity hourly, I found out that people are more active between 5 am and 10pm.
+
+Most activity happens between 5 pm and 7 pm - I suppose, that people go to a gym or for a walk after finishing work. We can use this time in the Bellabeat app to remind and motivate users to go for a run or walk.
+
+Let's look at the relationship between Total Minutes Asleep and Sedentry Minutes.
+
+
+
+### Sleep vs. Sedentary Minutes
+
+```{r sleep-vs-sedentary}
+ggplot(data = merged_data, aes(x = TotalMinutesAsleep, y = SedentaryMinutes)) +
+  geom_point(color = 'darkblue') +
+  geom_smooth() +
+  labs(title = "Minutes Asleep vs. Sedentary Minutes")
+```
+
+Here we can clearly see the negative relationship between Sedentary Minutes and Sleep time.
+
+As an idea: if Bellabeat users want to improve their sleep, Bellabeat app can recommend reducing sedentary time.
+
+Keep in mind that we need to support this insights with more data, because correlation between some data doesn’t mean causation.
+
+
+## Summarizing recommendations for the business
+
+As we already know, collecting data on activity, sleep, stress, and reproductive health has allowed Bellabeat to empower women with knowledge about their own health and habits. Since it was founded in 2013, Bellabeat has grown rapidly and quickly positioned itself as a tech-driven wellness company for women.
+
+After analyzing FitBit Fitness Tracker Data, I found some insights that would help influence Bellabeat marketing strategy.
+
+## Target audience
+
+Women who work full-time jobs (according to the hourly intensity data) and spend a lot of time at the computer/in a meeting/ focused on work they are doing (according to the sedentary time data).
+
+These women do some light activity to stay healthy (according to the activity type analysis). Even though they need to improve their everyday activity to have health benefits. They might need some knowledge about developing healthy habits or motivation to keep going.
+
+As there is no gender information about the participants, I assumed that all genders were presented and balanced in this data set.
+The key message for the Bellabeat online campaign
+
+The Bellabeat app is not just another fitness activity app. It’s a guide (a friend) who empowers women to balance full personal and professional life and healthy habits and routines by educating and motivating them through daily app recommendations.
+
+## Ideas for the Bellabeat app
+
+Average total steps per day are 7638 which a little bit less for having health benefits for according to the CDC research. They found that taking 8,000 steps per day was associated with a 51% lower risk for all-cause mortality (or death from all causes). Taking 12,000 steps per day was associated with a 65% lower risk compared with taking 4,000 steps. Bellabeat can encourage people to take at least 8 000 explaining the benefits for their health.
+
+If users want to lose weight, it’s probably a good idea to control daily calorie consumption. Bellabeat can suggest some ideas for low-calorie lunch and dinner.
+
+If users want to improve their sleep, Bellabeat should consider using app notifications to go to bed.
+
+Most activity happens between 5 pm and 7 pm - I suppose, that people go to a gym or for a walk after finishing work. Bellabeat can use this time to remind and motivate users to go for a run or walk.
+
+As an idea: if users want to improve their sleep, the Bellabeat app can recommend reducing sedentary time.
+
+Thank you for your interest to my Bellabeat Case Study!
+
+This is my first project using R. I would appreciate any comments and recommendations for improvement!
